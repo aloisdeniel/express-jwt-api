@@ -1,15 +1,15 @@
-var jwtapi = require('../');
+var JwtApi = require('../');
 
 function authenticate(username,password,cb) {
 	if(username === 'user' && password === '1234') cb(null, { username: username });
 	else cb(new Error("Invalid credentials"));
 };
 
-var api = jwtapi({
+var api = new JwtApi({
 	secret: 'secrettt',
 	expiry: '10 days',
 	authenticate: authenticate
-});
+}).setup();
 
 api.get('/protected', function(req,res) { res.json({ isProtected: true }); });
 
