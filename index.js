@@ -3,26 +3,14 @@ var bodyParser = require('body-parser');
 var jwt = require('jsonwebtoken');
 var expressJwt = require('express-jwt');
 var uuid = require('node-uuid');
-var DefaultStore = require('./store-nedb.js');
 
-/*
-*  opts = 
-*		(req) secret: undefined
-*		(req) authenticate: function(username,password,cb<err,token>)
-*		(opt) loginPath: '/auth/login'
-*		(opt) publicPaths : [ '/auth/login' ]
-* 		(opt) expiry :  undefined
-*/
-
-var refresh_tokens = new DefaultStore("refresh_tokens");
-
-function createToken(user,opts,cb) {
+function createToken(store,user,opts,cb) {
 	var refresh_token = uuid.v4();
 	var token = jwt.sign(user, opts.secret, {
 		expiresIn: opts.expiry
 	});
 	
-	refresh_tokens.set(refresh_token,user,function(err){
+	store.set(refresh_token,user,function(err){
 		if(err) {
 			cb(err);
 			return;
@@ -35,10 +23,10 @@ function createToken(user,opts,cb) {
 	});
 }
 
-function refreshToken(refresh_token,cb) {
-	refresh_tokens.get(refresh_token,function(err,user){
+function refreshToken(store,refresh_token,cb) {
+	store.get(refresh_token,function(err,user){
 		if(err) { cb(err); return; }
-		refresh_tokens.delete(refresh_token,function(err){
+		store.delete(refresh_token,function(err){
 			if(err) { cb(err); return; }
 			cb(null,user);
 		});
@@ -50,13 +38,19 @@ module.exports = function(opts) {
 	if(!opts.secret) throw new Error("A secret key must be precised");
 	if(!opts.authenticate) throw new Error("A user authentication function must be precised");
 	
-	var app = express();
 	
-	var loginPath = '/auth/login';
-	if(opts.loginPath) loginPath = opts.loginPath;
+	var loginPath = opts.loginPath;
+	var Store = opts.Store;
+	var app = opts.app;
+	
+	if(!loginPath) loginPath = '/auth/login';
+	if(!Store) Store = require('./store-nedb.js');
+	if(!app) app = express();
 	
 	var publicPaths = [loginPath];
 	if(opts.publicPaths) publicPaths.concat(opts.public);
+	
+	var refresh_tokens = new Store("refresh_tokens");
 	
 	app.use(bodyParser.json());
 	app.use(bodyParser.urlencoded({ extended: true }));
@@ -67,10 +61,10 @@ module.exports = function(opts) {
 		
 		if(req.body && req.body.refresh_token)
 		{
-			refreshToken(req.body.refresh_token,function(err,user){
+			refreshToken(refresh_tokens,req.body.refresh_token,function(err,user){
 				if(err) res.status(500).json({ message: 'internal server error' });
 				else if(!user) res.status(403).json({ message: 'invalid refresh_token' });
-				else createToken(user,opts,function(err,token){
+				else createToken(refresh_tokens,user,opts,function(err,token){
 					if(err) res.status(500).json({ message: 'internal server error' });
 					else res.json(token);
 				});
@@ -85,7 +79,7 @@ module.exports = function(opts) {
 				}
 				else
 				{
-					createToken(user,opts,function(err,token){
+					createToken(refresh_tokens,user,opts,function(err,token){
 						if(err) res.status(500).json({ message: 'internal server error' });
 						else res.json(token);
 					});

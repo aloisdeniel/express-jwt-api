@@ -13,6 +13,4 @@ var api = jwtapi({
 
 api.get('/protected', function(req,res) { res.json({ isProtected: true }); });
 
-api.listen(3000, function () {
-  console.log('Example app listening on port 3000!');
-});
+api.listen(3000, function () { console.log('Example app listening on port 3000!'); });
