@@ -3,6 +3,7 @@ var bodyParser = require('body-parser');
 var jwt = require('jsonwebtoken');
 var expressJwt = require('express-jwt');
 var uuid = require('node-uuid');
+var DefaultStore = require('./store-nedb.js');
 
 /*
 *  opts = 
@@ -13,20 +14,35 @@ var uuid = require('node-uuid');
 * 		(opt) expiry :  undefined
 */
 
-//Stored in memory
-var renew_tokens = {};
+var refresh_tokens = new DefaultStore("refresh_tokens");
 
-function createToken(user,opts) {
-	var renew_token = uuid.v4();
-	renew_tokens[renew_token] = user;
+function createToken(user,opts,cb) {
+	var refresh_token = uuid.v4();
 	var token = jwt.sign(user, opts.secret, {
 		expiresIn: opts.expiry
 	});
 	
-	return { 
-		token: token,
-		renew_token: renew_token
-	};
+	refresh_tokens.set(refresh_token,user,function(err){
+		if(err) {
+			cb(err);
+			return;
+		}
+		
+		cb(null,{ 
+			access_token: token,
+			refresh_token: refresh_token
+		});
+	});
+}
+
+function refreshToken(refresh_token,cb) {
+	refresh_tokens.get(refresh_token,function(err,user){
+		if(err) { cb(err); return; }
+		refresh_tokens.delete(refresh_token,function(err){
+			if(err) { cb(err); return; }
+			cb(null,user);
+		});
+	});
 }
 
 module.exports = function(opts) {
@@ -49,12 +65,16 @@ module.exports = function(opts) {
 	app.post(loginPath,function(req,res){
 		var username = req.body.username;
 		
-		if(req.body && req.body.renew_token && renew_tokens[req.body.renew_token])
+		if(req.body && req.body.refresh_token)
 		{
-			var user = renew_tokens[req.body.renew_token];
-			delete renew_tokens[req.body.renew_token];
-			var token = createToken(user,opts);
-			res.json(token);
+			refreshToken(req.body.refresh_token,function(err,user){
+				if(err) res.status(500).json({ message: 'internal server error' });
+				else if(!user) res.status(403).json({ message: 'invalid refresh_token' });
+				else createToken(user,opts,function(err,token){
+					if(err) res.status(500).json({ message: 'internal server error' });
+					else res.json(token);
+				});
+			});
 		}
 		else if(req.body && username && req.body.password)
 		{
@@ -65,14 +85,16 @@ module.exports = function(opts) {
 				}
 				else
 				{
-					var token = createToken(user,opts);
-					res.json(token);
+					createToken(user,opts,function(err,token){
+						if(err) res.status(500).json({ message: 'internal server error' });
+						else res.json(token);
+					});
 				}
 			});
 		}
 		else
 		{
-	    	res.status(403).json({ message: 'missing login or valid renew_token' });
+	    	res.status(403).json({ message: 'missing login or password' });
 		}
 	});
 	

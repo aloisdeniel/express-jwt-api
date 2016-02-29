@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
-    "index.js"
+    "index.js",
+    "store-nedb.js"
   ],
   "repository": {
     "type": "git",
@@ -29,6 +30,7 @@
     "express": "^4.13.4",
     "express-jwt": "^3.3.0",
     "jsonwebtoken": "^5.7.0",
+    "nedb": "^1.8.0",
     "node-uuid": "^1.4.7"
   }
 }

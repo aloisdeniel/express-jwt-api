@@ -45,6 +45,10 @@ Creates the express app with the preconfigured authentication routes and mecanis
 * `loginPath` (optional): The path for login method (default: `/auth/login`).
 * `publicPaths` (optional): An array containing all the unprotected path. The `loginPath` is automatically added to it.
 
+## Roadmap
+
+* Add token revokation
+
 ## Copyright and license
 
 MIT © [Aloïs Deniel](http://aloisdeniel.github.io)
